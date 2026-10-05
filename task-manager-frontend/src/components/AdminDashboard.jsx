@@ -14,9 +14,7 @@ const AdminDashboard = ({ setIsAuthenticated, setUserRole }) => {
   const [taskInput, setTaskInput] = useState("");
   const [usernameInput, setUsernameInput] = useState("");
   const [userTaskInput, setUserTaskInput] = useState("");
-  const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
@@ -43,9 +41,6 @@ const AdminDashboard = ({ setIsAuthenticated, setUserRole }) => {
   // Validation for password change
   const validatePasswordChange = () => {
     const newErrors = {};
-    if (!oldPassword.trim()) {
-      newErrors.oldPassword = "Old password is required.";
-    }
     if (!newPassword.trim()) {
       newErrors.newPassword = "New password is required.";
     } else if (newPassword.length < 6) {
@@ -223,7 +218,6 @@ const AdminDashboard = ({ setIsAuthenticated, setUserRole }) => {
       const response = await axios.post(
         "/change-password",
         {
-          oldPassword: oldPassword,
           newPassword: newPassword,
         },
         {
@@ -418,26 +412,6 @@ const AdminDashboard = ({ setIsAuthenticated, setUserRole }) => {
               </p>
 
               <h3>Change Password</h3>
-
-              <div className="password-input-container">
-                <input
-                  type={showOldPassword ? "text" : "password"}
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  placeholder="Old Password"
-                  className="password-input"
-                />
-                <span
-                  className="password-toggle-icon"
-                  onClick={() => setShowOldPassword(!showOldPassword)}
-                  aria-label="Toggle old password visibility"
-                >
-                  {showOldPassword ? <FaEyeSlash /> : <FaEye />}
-                </span>
-              </div>
-              {errors.oldPassword && (
-                <span className="dashboard-error">{errors.oldPassword}</span>
-              )}
 
               <div className="password-input-container">
                 <input
