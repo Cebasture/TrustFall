@@ -13,9 +13,7 @@ const Dashboard = ({ setIsAuthenticated, setUserRole }) => {
   const [userEmail, setUserEmail] = useState("Loading...");
   const [csrfToken, setCsrfToken] = useState(null);
   const [taskInput, setTaskInput] = useState("");
-  const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
@@ -42,9 +40,6 @@ const Dashboard = ({ setIsAuthenticated, setUserRole }) => {
   // Validation for password change
   const validatePasswordChange = () => {
     const newErrors = {};
-    if (!oldPassword.trim()) {
-      newErrors.oldPassword = "Old password is required.";
-    }
     if (!newPassword.trim()) {
       newErrors.newPassword = "New password is required.";
     } else if (newPassword.length < 6) {
@@ -140,7 +135,7 @@ const Dashboard = ({ setIsAuthenticated, setUserRole }) => {
             "Content-Type": "application/json",
             "X-CSRF-Token": csrfToken,
           },
-        }
+        },
       );
       alert("Task created successfully");
       setTaskInput("");
@@ -170,7 +165,7 @@ const Dashboard = ({ setIsAuthenticated, setUserRole }) => {
             "Content-Type": "application/json",
             "X-CSRF-Token": csrfToken,
           },
-        }
+        },
       );
       fetchCsrfToken(); // Refresh token
       loadPersonalTasks();
@@ -196,7 +191,7 @@ const Dashboard = ({ setIsAuthenticated, setUserRole }) => {
             "Content-Type": "application/json",
             "X-CSRF-Token": csrfToken,
           },
-        }
+        },
       );
       fetchCsrfToken();
       loadAssignedTasks();
@@ -212,21 +207,28 @@ const Dashboard = ({ setIsAuthenticated, setUserRole }) => {
       const response = await axios.post(
         "/change-password",
         {
-          oldPassword: oldPassword,
           newPassword: newPassword,
         },
         {
           headers: {
             "Content-Type": "application/json",
           },
-        }
+        },
       );
-      alert(response.data.message || response.data.error);
       if (response.data.message) {
+        alert(response.data.message);
         logout();
       }
     } catch (error) {
-      alert(error.response?.data?.error || "Error changing password");
+      console.error(
+        "change-password failed:",
+        error.response?.status,
+        error.response?.data,
+      );
+      setErrors((prev) => ({
+        ...prev,
+        newPassword: "Could not update password.",
+      }));
     }
   };
 
@@ -237,7 +239,7 @@ const Dashboard = ({ setIsAuthenticated, setUserRole }) => {
         {},
         {
           withCredentials: true,
-        }
+        },
       );
       // Clear client-side state
       localStorage.removeItem("isAuthenticated");
@@ -391,26 +393,6 @@ const Dashboard = ({ setIsAuthenticated, setUserRole }) => {
               </p>
 
               <h3>Change Password</h3>
-
-              <div className="password-input-container">
-                <input
-                  type={showOldPassword ? "text" : "password"}
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  placeholder="Old Password"
-                  className="password-input"
-                />
-                <span
-                  className="password-toggle-icon"
-                  onClick={() => setShowOldPassword(!showOldPassword)}
-                  aria-label="Toggle old password visibility"
-                >
-                  {showOldPassword ? <FaEyeSlash /> : <FaEye />}
-                </span>
-              </div>
-              {errors.oldPassword && (
-                <span className="dashboard-error">{errors.oldPassword}</span>
-              )}
 
               <div className="password-input-container">
                 <input

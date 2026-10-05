@@ -1,0 +1,15 @@
+[Unit]
+Description=Shutdown Reset - Apache + JSON + MySQL
+DefaultDependencies=no
+Before=shutdown.target reboot.target halt.target
+After=apache2.service mysql.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+ExecStart=/usr/local/bin/reset.sh
+TimeoutStartSec=60  # Extra time for MySQL
+
+[Install]
+WantedBy=shutdown.target

@@ -1,7 +1,8 @@
 [Unit]
 Description=Node.js Backend Server
-After=network-online.target systemd-networkd.service
-Wants=network-online.target
+# Start after the database is up.
+After=network-online.target systemd-networkd.service mysql.service
+Wants=network-online.target mysql.service
 
 [Service]
 Type=simple

@@ -8,7 +8,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStartPre=/bin/sleep 10
+# No blind sleep: autoLogin.py waits for the app (frontend + API) to actually
+# respond via wait_for_app_ready() before attempting login.
 ExecStart=/opt/selenium_venv/bin/python3 /usr/local/bin/autoLogin.py
 KillMode=control-group
 Restart=on-failure

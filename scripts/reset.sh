@@ -3,8 +3,6 @@
 
 set -e
 
-source /home/john/selenium_venv/bin/activate
-
 LOG_FILE="/var/log/shutdown-reset.log"
 USERS_JSON="/var/www/html/assets/users.json"
 MYSQL_RESET_SCRIPT="/home/john/csrfScenario/scripts/resetPasswords.py"
