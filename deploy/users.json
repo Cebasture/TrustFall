@@ -1,0 +1,42 @@
+{
+  "status": "ok",
+  "app": "Task-Manager",
+  "version": "1.0.2",
+  "users": [
+    {
+      "EMP-ID": 101,
+      "username": "John",
+      "email": "john@newtbug.com",
+      "role": "admin",
+      "active": true
+    },
+    {
+      " EMP-ID": 102,
+      "username": "Kevin",
+      "email": "kevin@newtbug.com",
+      "role": "user",
+      "active": false
+    },
+    {
+      " EMP-ID": 103,
+      "username": "Olivia",
+      "email": "kevin@newtbug.com",
+      "role": "user",
+      "active": false
+    },
+    {
+      " EMP-ID": 104,
+      "username": "Ray",
+      "email": "ray@newtbug.com",
+      "role": "user",
+      "active": false
+    },
+    {
+      " EMP-ID": 105,
+      "username": "Camilla",
+      "email": "camilla@newtbug.com",
+      "role": "user",
+      "active": false
+    }
+  ]
+}

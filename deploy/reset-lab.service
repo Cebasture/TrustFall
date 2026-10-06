@@ -1,0 +1,25 @@
+# DRAFT — boot-time lab reset. NOT YET ENABLED.
+# Install (only once proven by a reboot test):
+#   cp deploy/reset-lab.sh      /usr/local/bin/reset-lab.sh && chmod +x /usr/local/bin/reset-lab.sh
+#   cp deploy/reset-lab.service /etc/systemd/system/reset-lab.service
+#   systemctl daemon-reload && systemctl enable reset-lab.service
+#
+# Design: run AFTER mysql/apache/the bot have started, reset the DB + scoreboard +
+# Maildir, then the script restarts the bot so it re-arms against the clean
+# baseline. Ordering it *after* seleniumAutomation (not before) avoids any
+# start-ordering cycle and guarantees the bot ends up logged into clean data.
+[Unit]
+Description=Reset NewtBug/TrustFall CSRF lab to clean baseline at boot
+After=network-online.target mysql.service apache2.service seleniumAutomation.service
+Wants=network-online.target
+Requires=mysql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/reset-lab.sh
+RemainAfterExit=no
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

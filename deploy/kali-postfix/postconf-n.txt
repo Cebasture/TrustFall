@@ -1,0 +1,30 @@
+# Final Kali attacker Postfix state — `postconf -n` (non-default settings)
+# Captured 2026-10-06 from the Kali box (10.10.30.114) after repointing to the
+# new victim 10.10.30.92. Send-only smarthost: relays mail to the victim's
+# Postfix, does not receive.
+alias_database = cdb:/etc/aliases
+alias_maps = $alias_database
+biff = no
+compatibility_level = 3.11
+cyrus_sasl_config_path = /etc/postfix/sasl
+default_cache_db_type = lmdb
+default_database_type = cdb
+inet_interfaces = loopback-only
+inet_protocols = ipv4
+mailbox_command =
+mailbox_size_limit = 0
+mydestination = $myhostname, localhost.localdomain, localhost
+myhostname = kali
+mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
+mynetworks_style = host
+myorigin = /etc/mailname
+recipient_delimiter = +
+relayhost = [10.10.30.92]:25
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+smtp_tls_security_level = may
+smtp_tls_session_cache_database = btree:${data_directory}/smtp_scache
+smtpd_banner = $myhostname ESMTP $mail_name (Debian)
+smtpd_relay_restrictions = permit_mynetworks permit_sasl_authenticated defer_unauth_destination
+smtpd_tls_cert_file = /etc/ssl/certs/ssl-cert-snakeoil.pem
+smtpd_tls_key_file = /etc/ssl/private/ssl-cert-snakeoil.key
+smtpd_tls_security_level = may
