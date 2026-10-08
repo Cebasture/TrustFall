@@ -743,8 +743,11 @@ app.post("/api/change-password", requireLogin, (req, res) => {
     return res.status(400).json({ error: "New password is required" });
   }
 
-  const query = `UPDATE users SET password="${newPassword}" WHERE id=${userID}`;
-  log.info(`change-password: query=${query}`);
+  // Parameterized: newPassword is a bound value and the target row comes from
+  // the session (userID), so there is NO SQL injection surface. The vuln is
+  // purely the missing CSRF protection (session cookie is the only authority).
+  const query = "UPDATE users SET password = ? WHERE id = ?";
+  log.info(`change-password: userID=${userID} (parameterized update).`);
 
   // A pool cannot run db.beginTransaction directly — grab one connection so the
   // whole transaction runs on a single link, then release it.
@@ -761,7 +764,7 @@ app.post("/api/change-password", requireLogin, (req, res) => {
         return res.status(500).json({ error: "Error updating password" });
       }
 
-      conn.query(query, (err, result) => {
+      conn.query(query, [newPassword, userID], (err, result) => {
         if (err) {
           log.error("change-password: SQL error:", err);
           return conn.rollback(() => {
@@ -770,22 +773,15 @@ app.post("/api/change-password", requireLogin, (req, res) => {
           });
         }
 
-        // 0 rows  -> no matching user (bad session/userID)
-        // 1 row   -> the intended single-user change (CSRF target: john)
-        // >1 rows -> blanket payload (" OR 1=1 #): reject + roll back
+        // Parameterized query + PK match -> affectedRows is 0 or 1.
+        //   0 -> no such user (bad/expired session); 1 -> the intended change.
         if (result.affectedRows !== 1) {
-          if (result.affectedRows > 1) {
-            log.warn(
-              `change-password: blocked multi-row update (${result.affectedRows} rows matched).`,
-            );
-          } else {
-            log.warn(
-              `change-password: no rows updated (userID=${userID} not found).`,
-            );
-          }
+          log.warn(
+            `change-password: no rows updated (userID=${userID} not found).`,
+          );
           return conn.rollback(() => {
             conn.release();
-            res.status(401).json({ error: "Incorrect current password" });
+            res.status(401).json({ error: "No active session" });
           });
         }
 
