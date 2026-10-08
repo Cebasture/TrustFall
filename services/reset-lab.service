@@ -1,7 +1,7 @@
-# DRAFT — boot-time lab reset. NOT YET ENABLED.
-# Install (only once proven by a reboot test):
-#   cp deploy/reset-lab.sh      /usr/local/bin/reset-lab.sh && chmod +x /usr/local/bin/reset-lab.sh
-#   cp deploy/reset-lab.service /etc/systemd/system/reset-lab.service
+# Boot-time lab reset (enabled on the reference deploy; verified by a reboot test).
+# Install:
+#   cp scripts/reset-lab.sh       /usr/local/bin/reset-lab.sh && chmod +x /usr/local/bin/reset-lab.sh
+#   cp services/reset-lab.service /etc/systemd/system/reset-lab.service
 #   systemctl daemon-reload && systemctl enable reset-lab.service
 #
 # Design: run AFTER mysql/apache/the bot have started, reset the DB + scoreboard +
