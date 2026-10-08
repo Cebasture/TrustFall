@@ -5,7 +5,7 @@ set -e
 
 LOG_FILE="/var/log/shutdown-reset.log"
 USERS_JSON="/var/www/html/assets/users.json"
-MYSQL_RESET_SCRIPT="/home/john/csrfScenario/scripts/resetPasswords.py"
+MYSQL_RESET_SCRIPT="/home/john/Trustfall/scripts/resetPasswords.py"
 
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"

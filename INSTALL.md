@@ -5,7 +5,7 @@ single Ubuntu VM that runs the vulnerable app **and** the automated admin victim
 
 - **Target host (reference deploy):** `192.168.1.11` — Ubuntu 24.04.4 LTS, x86_64, 3.9 GB RAM
 - **SSH:** `john:ubuntu` (user `john` has `sudo`)
-- **Source:** this repo (`csrfScenario-main`)
+- **Source:** this repo (`Trustfall-main`)
 
 > Status legend: ✅ done & verified · 🚧 in progress · ⬜ not started
 
@@ -40,7 +40,7 @@ The local `-main` snapshot was stale in the auth path. Fixed in
   (no `oldPassword`, no SQLi) that destroys the session on success.
 
 All server commands assume you've cached sudo once per session:
-`echo <sudo-pass> | sudo -S -v`. The repo is unpacked to `/home/john/csrfScenario`.
+`echo <sudo-pass> | sudo -S -v`. The repo is unpacked to `/home/john/Trustfall`.
 
 ## Phase 1 — Base packages ✅
 ```bash
@@ -66,7 +66,7 @@ pipe SQL into `sudo -S mysql` — the file redirect steals stdin from the passwo
 prompt. Cache sudo first, then redirect:
 ```bash
 echo <sudo-pass> | sudo -S -v
-sudo mysql < /home/john/csrfScenario/scripts/seed.sql
+sudo mysql < /home/john/Trustfall/scripts/seed.sql
 # verify app user (password hardcoded in db.js):
 mysql -ujohn -p'johnPassword!@#$%' -e "SELECT COUNT(*) FROM userdb.users;"
 ```
@@ -75,7 +75,7 @@ Seeds users 1–5 (id=1 `john` admin) + a few tasks. Passwords match
 
 ## Phase 3 — Node backend + jsServer.service ✅
 ```bash
-sudo cp -r /home/john/csrfScenario/task-manager-backend /opt/task-manager-backend
+sudo cp -r /home/john/Trustfall/task-manager-backend /opt/task-manager-backend
 # .env — db.js hardcodes the DB password + 127.0.0.1; only these are read:
 sudo tee /opt/task-manager-backend/.env >/dev/null <<EOF
 PORT=3000
@@ -88,7 +88,7 @@ sudo chown -R john:john /opt/task-manager-backend
 cd /opt/task-manager-backend && npm install --no-audit --no-fund
 # db.js uses mysql.createPool (self-healing) — survives boot races, idle
 # wait_timeout, and MySQL restarts. jsServer.service orders After/Requires mysql.
-sudo cp /home/john/csrfScenario/services/jsServer.service /etc/systemd/system/
+sudo cp /home/john/Trustfall/services/jsServer.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now jsServer.service
 ```
 **Verified:** `/api/csrf-token` → 401 w/o session; login as `john@newtbug.com`
@@ -98,7 +98,7 @@ session cookie (no token) overwrites the password and destroys the session.
 
 ## Phase 4 — Frontend build + Apache ✅
 ```bash
-cd /home/john/csrfScenario/task-manager-frontend && npm install && npm run build
+cd /home/john/Trustfall/task-manager-frontend && npm install && npm run build
 sudo rm -rf /var/www/html/* && sudo cp -r dist/* /var/www/html/
 sudo a2enmod proxy proxy_http rewrite headers
 # vhost: serve the SPA + reverse-proxy /api to the node backend
@@ -163,9 +163,9 @@ sudo python3 -m venv /opt/selenium_venv
 sudo /opt/selenium_venv/bin/pip install selenium watchdog
 sudo ln -sfn /opt/selenium_venv /home/john/selenium_venv   # reset.sh expects this path
 # autoLogin.py + startup.py to /usr/local/bin (service paths):
-sudo cp /home/john/csrfScenario/scripts/autoLogin.py   /usr/local/bin/autoLogin.py
-sudo cp /home/john/csrfScenario/scripts/startupKali.py /usr/local/bin/startup.py
-sudo cp /home/john/csrfScenario/services/seleniumAutomation.service /etc/systemd/system/
+sudo cp /home/john/Trustfall/scripts/autoLogin.py   /usr/local/bin/autoLogin.py
+sudo cp /home/john/Trustfall/scripts/startupKali.py /usr/local/bin/startup.py
+sudo cp /home/john/Trustfall/services/seleniumAutomation.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now seleniumAutomation.service
 ```
 
@@ -190,9 +190,9 @@ the watcher keys on. (Short hostname `NewtBug` is the Maildir host segment.)
 ```bash
 sudo apt-get remove -y python3-mysql.connector
 sudo pip install --break-system-packages "mysql-connector-python>=9"
-sudo python3 /home/john/csrfScenario/scripts/resetPasswords.py   # resets pw id 1-5, deletes id>5
+sudo python3 /home/john/Trustfall/scripts/resetPasswords.py   # resets pw id 1-5, deletes id>5
 ```
-Repo lives at `/home/john/csrfScenario` so `reset.sh`'s script path resolves
+Repo lives at `/home/john/Trustfall` so `reset.sh`'s script path resolves
 as-is, and the `/home/john/selenium_venv` symlink satisfies its venv `source`.
 **Note:** `reset.sh` stops Apache — it's a *shutdown* script, don't run it on a
 live lab. For a live re-arm use `reset-lab.sh` (below).
@@ -201,9 +201,9 @@ live lab. For a live re-arm use `reset-lab.sh` (below).
 script that restores the whole baseline (reseed users/tasks, scoreboard
 `John:true`, clear Maildir, re-arm the bot). Install + enable at boot:
 ```bash
-sudo cp /home/john/csrfScenario/scripts/reset-lab.sh /usr/local/bin/reset-lab.sh
+sudo cp /home/john/Trustfall/scripts/reset-lab.sh /usr/local/bin/reset-lab.sh
 sudo chmod +x /usr/local/bin/reset-lab.sh
-sudo cp /home/john/csrfScenario/services/reset-lab.service /etc/systemd/system/
+sudo cp /home/john/Trustfall/services/reset-lab.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable reset-lab.service
 ```
 Run `sudo /usr/local/bin/reset-lab.sh` anytime to re-arm a live lab.
@@ -289,6 +289,6 @@ No SQLi: the query binds `newPassword` as a parameter.
 - `scripts/resetPasswords.py` uses `re.*` in `reset_users_json()` but never
   `import re` → that function raises and is caught (logs an error). Password
   reset still works; `users.json` reset is handled by `reset.sh`'s `sed` instead.
-- `reset.sh` references `/home/john/csrfScenario/scripts/...` (no `-main`) and
+- `reset.sh` references `/home/john/Trustfall/scripts/...` (no `-main`) and
   `/home/john/selenium_venv`, while `seleniumAutomation.service` uses
   `/opt/selenium_venv`. Paths normalized during deploy (see phases).
